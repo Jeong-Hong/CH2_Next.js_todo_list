@@ -1,6 +1,8 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { refresh } from 'next/cache';
+import type { LogoutState } from '@/components/auth/LogoutButton';
 import { createClient } from '@/lib/supabase/server';
 import {
     validateEmail,
@@ -161,4 +163,44 @@ export async function signupAction(
 
     // 가입 후 로그인 상태를 받으면 첫 화면으로 이동
     redirect("/");
+}
+
+// 현재 요청의 세션을 로그아웃
+export async function logoutAction(
+    _previousState: LogoutState,
+    _formData: FormData,
+): Promise<LogoutState> {
+    // 오류가 발생 했을 때 반환할 문구를 준비
+    let formError : string | null = null;
+
+    try {
+        // 인증 쿠키를 변경할 수 있는 클라이언트를 준비
+        const supabase = await createClient(true);
+
+        // 다른 세션을 유지하고 현재 세션만 종료
+        const { error } = await supabase.auth.signOut({
+            scope: 'local',
+        });
+
+        // 로그아웃 오류를 화면에 표시할 문구로 바꿈
+        if (error) {
+            formError = "로그아웃 요청을 완료하지 못했습니다. 현재 로그인 상태를 다시 확인해 주세요."
+        }
+    } catch {
+        // 요청 처리 중 발생한 에외를 실패 안내로 바꿈
+        formError = "로그아웃 요청을 완료하지 못했습니다. 현재 로그인 상태를 다시 확인해 주세요."
+    }
+
+    // 성공 여부와 관계없이 현재 화면의 서버 결과를 갱신
+    refresh();
+
+    // 성공하면 이전 오류를 지우고 실패하면 안내를 표시
+    return {
+        formError,
+    };
+}
+
+// 인증 상태 확인을 다시 요청
+export async function refreshAuthAction(): Promise<void> {
+    refresh();
 }
